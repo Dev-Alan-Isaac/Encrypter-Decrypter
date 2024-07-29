@@ -5,6 +5,11 @@ using System.Text;
 
 class Program
 {
+    // Key and IV for AES encryption
+    // It's crucial to use the same key and IV for both encryption and decryption
+    private static readonly byte[] Key = Encoding.UTF8.GetBytes("0123456789abcdef0123456789abcdef");
+    private static readonly byte[] IV = Encoding.UTF8.GetBytes("abcdef9876543210");
+
     static void Main()
     {
         Console.WriteLine("Welcome to Text Encryptor/Decryptor!");
@@ -46,37 +51,63 @@ class Program
         }
     }
 
-
     static string Encrypt(string plainText)
     {
-        using var aesAlg = Aes.Create();
-        aesAlg.GenerateKey();
-        aesAlg.GenerateIV();
+        // Check input
+        if (string.IsNullOrEmpty(plainText))
+            throw new ArgumentNullException(nameof(plainText), "Plaintext cannot be null or empty.");
 
-        var encryptor = aesAlg.CreateEncryptor(aesAlg.Key, aesAlg.IV);
-        var memoryStream = new MemoryStream();
-        using (var cryptoStream = new CryptoStream(memoryStream, encryptor, CryptoStreamMode.Write))
-        using (var streamWriter = new StreamWriter(cryptoStream))
+        using (Aes aesAlg = Aes.Create())
         {
-            streamWriter.Write(plainText);
-        }
+            aesAlg.Key = Key;
+            aesAlg.IV = IV;
+            aesAlg.Padding = PaddingMode.PKCS7; // Padding mode
 
-        var encryptedBytes = memoryStream.ToArray();
-        return Convert.ToBase64String(encryptedBytes);
+            // Create an encryptor
+            ICryptoTransform encryptor = aesAlg.CreateEncryptor(aesAlg.Key, aesAlg.IV);
+
+            using (MemoryStream msEncrypt = new MemoryStream())
+            {
+                using (CryptoStream csEncrypt = new CryptoStream(msEncrypt, encryptor, CryptoStreamMode.Write))
+                {
+                    using (StreamWriter swEncrypt = new StreamWriter(csEncrypt))
+                    {
+                        swEncrypt.Write(plainText);
+                    }
+                    byte[] encrypted = msEncrypt.ToArray();
+                    return Convert.ToBase64String(encrypted);
+                }
+            }
+        }
     }
 
     static string Decrypt(string cipherText)
     {
-        using var aesAlg = Aes.Create();
-        aesAlg.GenerateKey(); // Use the same key as during encryption
-        aesAlg.GenerateIV(); // Use the same IV as during encryption
+        // Check input
+        if (string.IsNullOrEmpty(cipherText))
+            throw new ArgumentNullException(nameof(cipherText), "Ciphertext cannot be null or empty.");
 
-        var decryptor = aesAlg.CreateDecryptor(aesAlg.Key, aesAlg.IV);
-        var encryptedBytes = Convert.FromBase64String(cipherText);
-        using var memoryStream = new MemoryStream(encryptedBytes);
-        using var cryptoStream = new CryptoStream(memoryStream, decryptor, CryptoStreamMode.Read);
-        using var streamReader = new StreamReader(cryptoStream);
+        byte[] cipherBytes = Convert.FromBase64String(cipherText);
 
-        return streamReader.ReadToEnd();
+        using (Aes aesAlg = Aes.Create())
+        {
+            aesAlg.Key = Key;
+            aesAlg.IV = IV;
+            aesAlg.Padding = PaddingMode.PKCS7; // Padding mode
+
+            // Create a decryptor
+            ICryptoTransform decryptor = aesAlg.CreateDecryptor(aesAlg.Key, aesAlg.IV);
+
+            using (MemoryStream msDecrypt = new MemoryStream(cipherBytes))
+            {
+                using (CryptoStream csDecrypt = new CryptoStream(msDecrypt, decryptor, CryptoStreamMode.Read))
+                {
+                    using (StreamReader srDecrypt = new StreamReader(csDecrypt))
+                    {
+                        return srDecrypt.ReadToEnd();
+                    }
+                }
+            }
+        }
     }
 }
